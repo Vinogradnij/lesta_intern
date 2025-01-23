@@ -31,8 +31,3 @@ def _merge(array, low, middle, high):
     while right_array:
         array[i] = right_array.popleft()
         i += 1
-
-
-my_array = [2, 4, 6, 8, 10, 1, 3, 5, 7, 9]
-merge_sort(my_array, 0, len(my_array) - 1)
-print(my_array)
