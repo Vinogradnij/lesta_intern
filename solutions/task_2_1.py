@@ -23,18 +23,23 @@ class RingBuffer:
     clear(self)
         Удалить из буфера все элементы
     get_size(self) -> int
+        Получить текущее количество элементов внутри буфера
+    get_maxsize(self) -> int
         Получить максимальный размер буфера
     """
 
     def __init__(self, size: int, iterable: Iterable[Any] = ()):
         """
-        Создать буфер с заданным размером size (обязателен) из последовательности iterable (может отсутствовать)
+        Создать буфер с заданным размером size (обязателен, больше 0)
+        из последовательности iterable (может отсутствовать)
 
         :param size: Максимальное количество элементов буфера
         :type size: int
         :param iterable: Последовательность, которую необходимо занести в буфер
         :type iterable: Iterable[Any]
         """
+        if size == 0:
+            raise ValueError('Size must be greater than zero')
         self._buffer = deque(iterable=iterable, maxlen=size)
 
     def put(self, element: Any):
@@ -77,6 +82,15 @@ class RingBuffer:
         self._buffer.clear()
 
     def get_size(self) -> int:
+        """
+        Получить текущее количество элементов внутри буфера
+
+        :rtype: int
+        :return: Текущее количество элементов внутри буфера
+        """
+        return len(self._buffer)
+
+    def get_maxsize(self) -> int:
         """
         Получить максимальный размер буфера
 
