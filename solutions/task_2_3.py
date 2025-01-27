@@ -29,6 +29,8 @@ class YetAnotherRingBuffer:
         Получить самый старый элемент (без удаления из буфера)
     clear(self)
         Удалить из буфера все элементы
+    get_size(self) -> int
+        Получить текущее количество элементов внутри буфера
     get_maxsize(self) -> int
         Получить максимальный размер буфера
     set_maxsize(self, size: int)
@@ -37,6 +39,8 @@ class YetAnotherRingBuffer:
     """
 
     def __init__(self, size: int, iterable: Iterable[Any] = ()):
+        if size <= 0:
+            raise ValueError('Size must be greater than zero')
         self._maxsize = size
         self._pointer = 0
         self._len = 0
@@ -47,6 +51,9 @@ class YetAnotherRingBuffer:
     def put(self, element: Any):
         """
         Добавить элемент в буфер
+
+        Если в буфере есть свободное место - записываем на основе размера, иначе - с помощью указателя на
+        старейший элемент
 
         :param element: Объект, который необходимо добавить в буфер
         :type element: Any
@@ -102,6 +109,15 @@ class YetAnotherRingBuffer:
         self._buffer = self._create_buffer()
         self._pointer = 0
         self._len = 0
+
+    def get_size(self) -> int:
+        """
+        Получить текущее количество элементов внутри буфера
+
+        :rtype: int
+        :return: Текущее количество элементов внутри буфера
+        """
+        return self._len
 
     def get_maxsize(self) -> int:
         """
