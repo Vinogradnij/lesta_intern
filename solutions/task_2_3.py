@@ -41,6 +41,15 @@ class YetAnotherRingBuffer:
     """
 
     def __init__(self, size: int, iterable: Iterable[Any] = ()):
+        """
+        Создать буфер с заданным размером size (обязателен, больше 0)
+        из последовательности iterable (может отсутствовать)
+
+        :param size: Максимальное количество элементов буфера
+        :type size: int
+        :param iterable: Последовательность, которую необходимо занести в буфер
+        :type iterable: Iterable[Any]
+        """
         if size <= 0:
             raise ValueError('Size must be greater than zero')
         self._maxsize = size
