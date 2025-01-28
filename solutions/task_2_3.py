@@ -12,16 +12,18 @@ class YetAnotherRingBuffer:
         Словарь для хранения данных
     _maxsize: int
         Максимальный размер буфера
-    _pointer: int
-        Указатель на самый старый элемент буфера
-    _len: int
-        Количество хранимых элементов
+    _oldest_element: int
+        Указатель на ячейку, из которой необходимо достать запись
+    _newest_cell: int
+        Указатель на ячейку, в которую необходимо произвести запись
+    _size: int
+        Текущая заполненность буфера
 
     Методы
     ----
     put(self, element: Any)
         Добавить элемент в буфер
-    extend(self, iterable: Iterable)
+    extend(self, iterable: Iterable[Any])
         Добавить последовательность элементов
     pop(self) -> Any
         Получить самый старый элемент (с удалением из буфера)
@@ -30,7 +32,7 @@ class YetAnotherRingBuffer:
     clear(self)
         Удалить из буфера все элементы
     get_size(self) -> int
-        Получить текущее количество элементов внутри буфера
+        Получить текущую заполненность буфера
     get_maxsize(self) -> int
         Получить максимальный размер буфера
     set_maxsize(self, size: int)
@@ -42,8 +44,9 @@ class YetAnotherRingBuffer:
         if size <= 0:
             raise ValueError('Size must be greater than zero')
         self._maxsize = size
-        self._pointer = 0
-        self._len = 0
+        self._oldest_cell = 0
+        self._newest_cell = 0
+        self._size = 0
         self._buffer = self._create_buffer()
         if iterable:
             self.extend(iterable)
@@ -52,20 +55,13 @@ class YetAnotherRingBuffer:
         """
         Добавить элемент в буфер
 
-        Если в буфере есть свободное место - записываем на основе размера, иначе - с помощью указателя на
-        старейший элемент
-
         :param element: Объект, который необходимо добавить в буфер
         :type element: Any
 
         :return: None
         """
-        if self._is_not_full_buffer():
-            self._buffer[self._len] = element
-            self._increment_len()
-        else:
-            self._buffer[self._pointer] = element
-            self._increment_pointer()
+        self._buffer[self._newest_cell] = element
+        self._shift_after_put()
 
     def extend(self, iterable: Iterable[Any]):
         """
@@ -86,9 +82,9 @@ class YetAnotherRingBuffer:
         :rtype: Any
         :return: Самый старый элемент. Если буфер пуст - то None
         """
-        element = self._buffer[self._pointer]
-        self._buffer[self._pointer] = None
-        self._decrement_len()
+        element = self._buffer[self._oldest_cell]
+        self._buffer[self._oldest_cell] = None
+        self._shift_after_pop()
         return element
 
     def get(self) -> Any:
@@ -98,7 +94,7 @@ class YetAnotherRingBuffer:
         :rtype: Any
         :return: Самый старый элемент. Если буфер пуст - то None
         """
-        return self._buffer[self._pointer]
+        return self._buffer[self._oldest_cell]
 
     def clear(self):
         """
@@ -107,17 +103,18 @@ class YetAnotherRingBuffer:
         :return: None
         """
         self._buffer = self._create_buffer()
-        self._pointer = 0
-        self._len = 0
+        self._oldest_cell = 0
+        self._newest_cell = 0
+        self._size = 0
 
     def get_size(self) -> int:
         """
-        Получить текущее количество элементов внутри буфера
+        Получить текущую заполненность буфера
 
         :rtype: int
         :return: Текущее количество элементов внутри буфера
         """
-        return self._len
+        return self._size
 
     def get_maxsize(self) -> int:
         """
@@ -140,31 +137,31 @@ class YetAnotherRingBuffer:
         if self._maxsize > size >= 0:
             self._cut_buffer(size)
         elif self._maxsize < size:
-            self._expand_buffer(size)
+            self._extend_buffer(size)
 
     def _cut_buffer(self, size: int):
         """
         Создать новый буфер меньшего размера с переносом данных
 
-        :param size:
+        :param size: Новый максимальный размер буфера
         :type size: int
         :return: None
         """
         old_buffer = []
-        while self._len >= size:
+        while self._size >= size:
             old_buffer.append(self.pop())
         self.__init__(size, old_buffer)
 
-    def _expand_buffer(self, size: int):
+    def _extend_buffer(self, size: int):
         """
         Создать новый буфер большего размера с переносом данных
 
-        :param size:
+        :param size: Новый максимальный размер буфера
         :type size: int
         :return: None
         """
         old_buffer = []
-        while self._len != 0:
+        while self._size != 0:
             old_buffer.append(self.pop())
         self.__init__(size, old_buffer)
 
@@ -177,44 +174,61 @@ class YetAnotherRingBuffer:
         """
         return {key: None for key in range(self._maxsize)}
 
-    def _increment_len(self):
+    def _increment_size(self):
         """
-        Увеличить показатель количества хранимых элементов
+        Увеличить текущую заполненность буфера на 1
 
         :return: None
         """
-        self._len += 1
+        if self._size < self._maxsize:
+            self._size += 1
 
-    def _decrement_len(self):
+    def _decrement_size(self):
         """
-        Уменьшить показатель количества хранимых элементов, если это возможно. В этом же случае сместить
-        указатель на самый старый элемент буфера. Если элементов больше нет - сбросить указатель на самый
-        старый элемент буфера
-
-        :return: None
-        """
-        if self._len > 0:
-            self._len -= 1
-            self._increment_pointer()
-        if self._len == 0:
-            self._pointer = 0
-
-    def _increment_pointer(self):
-        """
-        Циклически сдвинуть указатель вправо
+        Уменьшить текущую заполненность буфера на 1
 
         :return: None
         """
-        self._pointer = (self._pointer + 1) % self._maxsize
+        if self._size > 0:
+            self._size -= 1
 
-    def _is_not_full_buffer(self) -> bool:
+    def _increment_oldest(self):
         """
-        Проверить, что буфер не переполнен
+        Циклически сдвинуть указатель на ячейку для удаления вправо
 
-        :rtype: bool
-        :return: True, если в буфере осталось неиспользованное место. Иначе False
+        :return: None
         """
-        return self._len < self._maxsize
+        self._oldest_cell = (self._oldest_cell + 1) % self._maxsize
+
+    def _increment_newest(self):
+        """
+        Циклически сдвинуть указатель на ячейку для записи вправо
+
+        :return: None
+        """
+        self._newest_cell = (self._newest_cell + 1) % self._maxsize
+
+    def _shift_after_put(self):
+        """
+        Сдвиг указателя на ячейку для записи, увеличение показателя размера буфера,
+        сдвиг указателя на ячейку для удаления если буфер заполнен
+
+        :return: None
+        """
+        self._increment_newest()
+        if self._size == self._maxsize:
+            self._increment_oldest()
+        self._increment_size()
+
+    def _shift_after_pop(self):
+        """
+        Уменьшение показателя размера буфера, сдвиг указателя на ячейку для удаления если буфер не пуст
+
+        :return: None
+        """
+        if self._size != 0:
+            self._increment_oldest()
+        self._decrement_size()
 
     def __str__(self):
         return f'{list(self._buffer.values())}'
